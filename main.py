@@ -4,18 +4,22 @@ import validate
 
 def main():
     # Tạo đầu vào với số người dùng, số RU, số RB ở mỗi RU
-    K, I, B, H = input.createEnvironmentInput(2, 2, [4,4])
+    K, I, B, H = input.createEnvironmentInput(3, 3, [5,5,5])
 
     # Tạo bài toán với đầu vào trên và giải
-    prob = ILPsolver.AllocationProblemILP(K = K, I = I, H = H, B = B, Pmax = [200, 250],
-                                          RminK = [50, 50], Tmin = 100, BW = 180000, N0 = 4.002e-21)
+    prob = ILPsolver.AllocationProblemILP(K = K, I = I, H = H, B = B, Pmax = [200, 250, 200],
+                                          RminK = [50, 50, 50], Tmin = 100, BW = 180000, N0 = 7.02e-6)
     # Nên có chỗ để tạo Pmax, RminK, Tmin, BW và N0?
-    solution, time = prob.solve()
+    solution, map, time = prob.solve()
 
-    print(solution)
-    print("\n" + str(time))
+    sol_map = {}
+    for var_id, value in solution.items():
+        var_name = map.get(var_id, f"Unknown_{var_id}")
+        sol_map[var_name] = value
+        print(f"{var_name} = {value}")
+
     
-    print(validate.check_solution_constraints(solution, prob))
+    print(validate.check_solution_constraints(sol_map, prob))
 
 
 main()
