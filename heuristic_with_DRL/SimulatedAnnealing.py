@@ -36,8 +36,8 @@ class RBAllocationSA(Annealer):
         super().__init__(state)
 
     def initialize_state(self):
-        x = {i: np.zeros((len(self.B[i]), len(self.K))) for i in self.I}
-        p = {i: np.zeros((len(self.B[i]), len(self.K))) for i in self.I}
+        x = np.array([np.zeros((len(self.B[i]), len(self.K))) for i in self.I], dtype = object)
+        p = np.array([np.zeros((len(self.B[i]), len(self.K))) for i in self.I], dtype = object)
 
         condition = True
         while condition:
@@ -216,7 +216,9 @@ class RBAllocationSA(Annealer):
         # Tạo file để lưu
         id = len(os.listdir("./DRL/Data_DRL"))
         save_file = f"./DRL/Data_DRL/data_{id}.npz"
-        np.savez_compressed(save_file, x = self.all_x, p = self.all_p, energy = self.energy_history)
+        np.savez_compressed(save_file, x = np.array(self.all_x, dtype = object)
+                                     , p = np.array(self.all_p, dtype = object)
+                                     , energy = np.array(self.energy_history, dtype = np.float32))
 
     
 
