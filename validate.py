@@ -1,5 +1,5 @@
 import common
-import ILPsolver
+import cvxpy_sol.ILPsolver as ILPsolver
 import numpy as np
 
 """

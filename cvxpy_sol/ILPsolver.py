@@ -28,6 +28,11 @@ class AllocationProblemILP():
         self.Tmin = Tmin
         self.BW = BW
         self.N0 = N0
+
+        self.sol_map = {}
+        self.obj_val = 0
+        self.time = 0
+        self.num_user_serve = 0
         
 
     def createProblem(self):
@@ -98,8 +103,17 @@ class AllocationProblemILP():
         problem = self.createProblem()
 
         problem.solve(solver=cp.MOSEK, verbose = True)
-        print(problem.is_dcp())  # Nếu là True, bài toán là convex và solver có thể giải
 
-        variable_name_map = { var.id: var.name() for var in problem.variables() }
-
-        return problem.solution.primal_vars, variable_name_map, problem._solve_time 
+        self.sol_map = problem.var_dict
+        self.num_user_serve = sum(self.sol_map.get(f"pi_{k}").value for k in self.K)
+        self.obj_val = problem.objective.value
+        self.time = problem._solve_time
+    """
+    def write_file(self, file):
+        with open(file = file, mode = 'w') as opf:
+            opf.write(f"{len(self.K),len(self.I),[len(self.B[i]) for i in self.I]}\n")
+            opf.write(f"Pmax = {self.Pmax}, RminK = {self.RminK}\n")
+            opf.write(f"objective : {self.obj_val}\n")
+            opf.write(f"Number of user served : {self.num_user_serve}\n")
+            opf.write(f"Solving time : {self.time}\n")
+    """
