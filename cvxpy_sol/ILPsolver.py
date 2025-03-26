@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import gurobipy
 import common
-
+import mosek
 
 """
     Lớp bài toán O-RAN Resource Allocation
@@ -30,9 +30,10 @@ class AllocationProblemILP():
         self.N0 = N0
 
         self.sol_map = {}
-        self.obj_val = 0
         self.time = 0
         self.num_user_serve = 0
+        self.check = True
+        self.throughput = 0
         
 
     def createProblem(self):
@@ -89,10 +90,9 @@ class AllocationProblemILP():
                     constraints.append(u[(i, b, k)] <= p[(i, b, k)])
                     constraints.append(u[(i, b, k)] <= self.Pmax[i] * x[(i, b, k)])
                     constraints.append(u[(i, b, k)] >= p[(i, b, k)] - self.Pmax[i] * x[(i, b, k)])
-                    constraints.append(p[(i, b, k)] <= self.Pmax[i] * x[(i, b, k)])   # Điều kiện thêm
 
         # Hàm mục tiêu: Tối đa throughput và số lát mạng được chấp nhận
-        objective = cp.Maximize(cp.sum([common.tunning * dataRate[k] + (1 - common.tunning) * pi[k] for k in self.K]))
+        objective = cp.Maximize(cp.sum([(1 - common.tunning) * dataRate[k] + common.tunning * pi[k] for k in self.K]))
 
         # Giải bài toán tối ưu
         problem = cp.Problem(objective, constraints)
@@ -100,20 +100,77 @@ class AllocationProblemILP():
         return problem
 
     def solve(self):
+       
         problem = self.createProblem()
 
-        problem.solve(solver=cp.MOSEK, verbose = True)
+        # Thiết lập số luồng cho MOSEK
+        mosek_params = {
+            mosek.iparam.num_threads: 6,  # Sử dụng 8 luồng (có thể điều chỉnh)
+            mosek.dparam.mio_tol_rel_gap: 1e-2  # Dung sai 1% để tăng tốc độ
+        }
+
+        problem.solve(solver=cp.MOSEK, verbose = True, mosek_params = mosek_params)
 
         self.sol_map = problem.var_dict
         self.num_user_serve = sum(self.sol_map.get(f"pi_{k}").value for k in self.K)
-        self.obj_val = problem.objective.value
+        self.throughput = (problem.objective.value - common.tunning * self.num_user_serve)/(1 - common.tunning)
+
         self.time = problem._solve_time
-    """
-    def write_file(self, file):
-        with open(file = file, mode = 'w') as opf:
-            opf.write(f"{len(self.K),len(self.I),[len(self.B[i]) for i in self.I]}\n")
-            opf.write(f"Pmax = {self.Pmax}, RminK = {self.RminK}\n")
-            opf.write(f"objective : {self.obj_val}\n")
-            opf.write(f"Number of user served : {self.num_user_serve}\n")
-            opf.write(f"Solving time : {self.time}\n")
-    """
+        self.check = self.check_solution()
+        
+    
+    def check_solution(self):
+        x = {(i, b, k): self.sol_map.get(f"x_{i}_{b}_{k}", 0).value for i in self.I for b in self.B[i] for k in self.K}
+        y = {(i, k): self.sol_map.get(f"y_{i}_{k}", 0).value for i in self.I for k in self.K}
+        pi = {k: self.sol_map.get(f"pi_{k}", 0).value for k in self.K}
+        p = {(i, b, k): self.sol_map.get(f"p_{i}_{b}_{k}", 0).value for i in self.I for b in self.B[i] for k in self.K}
+        u = {(i, b, k): self.sol_map.get(f"u_{i}_{b}_{k}", 0).value for i in self.I for b in self.B[i] for k in self.K}
+
+        with open("./output_CVXPY.txt", 'w') as opf:
+            opf.write(str(x))
+            opf.write(str(p))
+        # Constraint 1: Mỗi RB chỉ được gán tối đa 1 user
+        for i in self.I:
+            for b in self.B[i]:
+                if (sum(x[(i, b, k)] for k in self.K) >= (1 + 1e-5)):
+                    return False  # Vi phạm điều kiện 1
+
+        # Constraint 2: Đảm bảo min data rate cho mỗi user (đã tuyến tính hóa hàm log2(1+x))
+        for k in self.K:
+            data_rate = sum(
+                self.BW * np.log2(1 + ((u[(i, b, k)] * self.H[k][i][b]) / (self.BW * self.N0)))
+                for i in self.I for b in self.B[i]
+            )
+            if data_rate < self.RminK[k] * pi[k]:
+                return False  # Vi phạm điều kiện 2
+
+        # Constraint 3: Mối quan hệ giữa x và y
+        for k in self.K:
+            for i in self.I:
+                lhs = sum(x[(i, b, k)] for b in self.B[i]) / len(self.B[i])
+                if (lhs > y[(i, k)] + 1e-5) :  # Tránh lỗi số thực
+                    return False  # Vi phạm điều kiện 3
+
+        # Constraint 4: Mối quan hệ giữa pi và y
+        for k in self.K:
+            lhs = sum(y[(i, k)] for i in self.I) / len(self.I)
+            if (lhs > pi[k] + 1e-5):
+                return False  # Vi phạm điều kiện 4
+
+        # Constraint 5: Tổng công suất truyền không vượt quá Pmax của RU
+        for i in self.I:
+            total_power = sum(u[(i, b, k)] for b in self.B[i] for k in self.K)
+            if total_power - self.Pmax[i] > 1e-5:
+                return False  # Vi phạm điều kiện 5
+
+        # Constraint 6: Quan hệ giữa u, p và x
+        for k in self.K:
+            for i in self.I:
+                for b in self.B[i]:
+                    if not (u[(i, b, k)] <= p[(i, b, k)] and u[(i, b, k)] <= self.Pmax[i] * x[(i, b, k)] 
+                            and u[(i, b, k)] >= p[(i, b, k)] - self.Pmax[i] * x[(i, b, k)]):
+                        return False  # Vi phạm điều kiện 6
+
+        return True  # Không có lỗi nào
+
+        
