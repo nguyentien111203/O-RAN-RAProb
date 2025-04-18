@@ -137,6 +137,8 @@ class AllocationProblemILP():
             ]) 
             for k in self.K
         }
+        with open("./power.txt", "a") as opp:
+            opp.write(str(p))
 
         self.throughput = sum([dataRate[k] for k in self.K])
     

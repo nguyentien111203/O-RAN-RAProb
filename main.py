@@ -54,7 +54,7 @@ def main():
             pro_greedy.run()
             
             # Giải với SA
-            for t in range(10):
+            for t in range(2):
                 prob_SA = SimulatedAnnealing.RBAllocationSA(K = K, I = I, H = H, B = B, Pmax = Pmax,
                                                 RminK = RminK, Thrmin = Thrmin, BW = BW, N0 = N0, step_SA = step_SA, Tmax = Tmax,
                                                 Tmin = Tmin, test_id = t)

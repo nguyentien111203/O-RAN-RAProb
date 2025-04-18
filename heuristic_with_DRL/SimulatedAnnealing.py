@@ -123,9 +123,9 @@ class RBAllocationSA(Annealer):
                 condition = False
                 throughput = sum(self.compute_throughput(self.compute_SINR((allocation, power)))[k] for k in self.K)
                 with open("./throughput.txt", "a") as opf:
-                    opf.write(f"{throughput}")
+                    opf.write(f"{throughput}\n")
                 with open("./power.txt", "a") as opp:
-                    opf.write(str(power))
+                    opp.write(str(power))
                 return (allocation, power)    
             
     def compute_SINR(self, state):
