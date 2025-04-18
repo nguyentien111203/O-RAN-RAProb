@@ -68,3 +68,6 @@ def check_solution_constraints(solution, problem : ILPsolver.AllocationProblemIL
                     return 6  # Vi phạm điều kiện 6
 
     return 0  # Không có lỗi nào
+
+
+            

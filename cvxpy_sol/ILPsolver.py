@@ -18,14 +18,14 @@ import mosek
         N0 : mật độ công suất tạp âm (W/Hz)
 """
 class AllocationProblemILP():
-    def __init__(self, K, I, H, B, Pmax, RminK, Tmin, BW, N0):
+    def __init__(self, K, I, H, B, Pmax, RminK, Thrmin, BW, N0):
         self.K = K
         self.I = I
         self.H = H
         self.B = B
         self.Pmax = Pmax
         self.RminK = RminK
-        self.Tmin = Tmin
+        self.Thrmin = Thrmin
         self.BW = BW
         self.N0 = N0
 
@@ -45,9 +45,9 @@ class AllocationProblemILP():
         u = { (i, b, k): cp.Variable(name = f"u_{i}_{b}_{k}", nonneg=True) for i in self.I for b in self.B[i] for k in self.K }
 
         # Biểu thức tính toán SINR và throughput
-        SINR = { (i, b, k): (u[(i, b, k)] * self.H[k][i][b]) / (self.BW * self.N0)
+        SINR = { (i, b, k): (u[(i, b, k)] * self.H[i][b][k]) / (self.BW * self.N0)
             for i in self.I for b in self.B[i] for k in self.K}
-        
+       
         dataRate = { 
         k: cp.sum([
             self.BW * cp.log1p(1 + SINR[(i, b, k)]) / np.log(2) 
@@ -92,7 +92,7 @@ class AllocationProblemILP():
                     constraints.append(u[(i, b, k)] >= p[(i, b, k)] - self.Pmax[i] * x[(i, b, k)])
 
         # Hàm mục tiêu: Tối đa throughput và số lát mạng được chấp nhận
-        objective = cp.Maximize(cp.sum([(1 - common.tunning) * dataRate[k] + common.tunning * pi[k] for k in self.K]))
+        objective = cp.Maximize(cp.sum([(1 - common.tunning) * (dataRate[k]/ self.Thrmin) + common.tunning * pi[k] for k in self.K]))
 
         # Giải bài toán tối ưu
         problem = cp.Problem(objective, constraints)
@@ -105,18 +105,19 @@ class AllocationProblemILP():
 
         # Thiết lập số luồng cho MOSEK
         mosek_params = {
-            mosek.iparam.num_threads: 6,  # Sử dụng 8 luồng (có thể điều chỉnh)
-            mosek.dparam.mio_tol_rel_gap: 1e-2  # Dung sai 1% để tăng tốc độ
+            "MSK_IPAR_NUM_THREADS": 6,  # Sử dụng 8 luồng (có thể điều chỉnh)
         }
 
         problem.solve(solver=cp.MOSEK, verbose = True, mosek_params = mosek_params)
 
         self.sol_map = problem.var_dict
         self.num_user_serve = sum(self.sol_map.get(f"pi_{k}").value for k in self.K)
-        self.throughput = (problem.objective.value - common.tunning * self.num_user_serve)/(1 - common.tunning)
-
-        self.time = problem._solve_time
         self.check = self.check_solution()
+        self.throughput = (problem.objective.value - common.tunning * self.num_user_serve) * self.Thrmin/(1 - common.tunning)
+        
+        
+        self.time = problem._solve_time
+        
         
     
     def check_solution(self):
@@ -125,10 +126,20 @@ class AllocationProblemILP():
         pi = {k: self.sol_map.get(f"pi_{k}", 0).value for k in self.K}
         p = {(i, b, k): self.sol_map.get(f"p_{i}_{b}_{k}", 0).value for i in self.I for b in self.B[i] for k in self.K}
         u = {(i, b, k): self.sol_map.get(f"u_{i}_{b}_{k}", 0).value for i in self.I for b in self.B[i] for k in self.K}
+        
+        # Biểu thức tính toán SINR và throughput
+        SINR = { (i, b, k): (u[(i, b, k)] * self.H[i][b][k]) / (self.BW * self.N0)
+            for i in self.I for b in self.B[i] for k in self.K}
+        dataRate = { 
+        k: cp.sum([
+            self.BW * np.log1p(1 + SINR[(i, b, k)]) / np.log(2) 
+            for i in self.I for b in self.B[i]
+            ]) 
+            for k in self.K
+        }
 
-        with open("./output_CVXPY.txt", 'w') as opf:
-            opf.write(str(x))
-            opf.write(str(p))
+        self.throughput = sum([dataRate[k] for k in self.K])
+    
         # Constraint 1: Mỗi RB chỉ được gán tối đa 1 user
         for i in self.I:
             for b in self.B[i]:
@@ -138,7 +149,7 @@ class AllocationProblemILP():
         # Constraint 2: Đảm bảo min data rate cho mỗi user (đã tuyến tính hóa hàm log2(1+x))
         for k in self.K:
             data_rate = sum(
-                self.BW * np.log2(1 + ((u[(i, b, k)] * self.H[k][i][b]) / (self.BW * self.N0)))
+                self.BW * np.log2(1 + ((u[(i, b, k)] * self.H[i][b][k]) / (self.BW * self.N0)))
                 for i in self.I for b in self.B[i]
             )
             if data_rate < self.RminK[k] * pi[k]:

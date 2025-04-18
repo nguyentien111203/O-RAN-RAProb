@@ -19,15 +19,7 @@ class Predictor:
         print(p_pred)
         print(f"Kết quả đã lưu vào {output_file}")
 
-# Thử dự đoán
-if __name__ == "__main__":
-    model_path = "ppo_policy.pth"  # Đường dẫn mô hình đã train
-    I, B, K = 3, 3, 3  # Số lượng Input
 
-    predictor = Predictor(model_path, I, B, K)
-
-    # Giả lập một trạng thái đầu vào
-    state = np.random.rand(2 * I, B, K)
 
     # Dự đoán và lưu kết quả
-    predictor.predict_and_save(state, output_file="result.npz")
+    #predictor.predict_and_save(state, output_file="result.npz")

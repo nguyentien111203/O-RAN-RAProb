@@ -5,85 +5,136 @@ import time
 import os
 import common
 import math
+import random
+
 
 
 class RBAllocationSA(Annealer):
-    id = 0
-    def __init__(self, K, I, H, B, Pmax, RminK, Tmin, BW, N0, step_SA, test_id):
+    id = 6 #5
+    def __init__(self, K, I, H, B, Pmax, RminK, Thrmin, BW, N0, step_SA, Tmax, Tmin, test_id):
         self.K = K  # Tập người dùng
         self.I = I  # Tập RU
         self.H = H  # Ma trận channel vector
         self.B = B  # Tập số RB của từng RU
         self.Pmax = Pmax  # Công suất tối đa của từng RU
         self.RminK = RminK  # Data rate tối thiểu của từng user
-        self.Tmin = Tmin  # Throughput tối thiểu
+        self.Thrmin = Thrmin  # Throughput tối thiểu
         self.BW = BW  # Băng thông của từng RB
         self.N0 = N0  # Mật độ công suất tạp âm
         
-        self.input_prob = (self.K, self.I, self.H, self.B, self.Pmax, self.RminK, self.Tmin, self.BW, self.N0)
         # Khởi tạo biến người dùng
         self.pi = {k : 0 for k in self.K}
         self.throughput_SA = 0
 
         self.num_user_serve = 0
-        self.Tmax = 1000
-        self.Tmin = 100
+        self.Tmax = Tmax
+        self.Tmin = Tmin
         self.steps = step_SA
         self.energy_history = []
         self.time = 0
-
-        self.test_id = test_id
-        self.best_state = []
-        self.best_energy = 0
+        self.current_step = 0
         self.all_x = []
         self.all_p = []
+        self.actions = []
 
+        self.test_id = test_id
         state = self.initialize_state()
         super().__init__(state)
 
     def initialize_state(self):
-        x = np.array([np.zeros((len(self.B[i]), len(self.K))) for i in self.I], dtype = object)
-        p = np.array([np.zeros((len(self.B[i]), len(self.K))) for i in self.I], dtype = object)
-
         condition = True
-        while condition:
-            """
-            Tạo giải pháp ban đầu hợp lệ:
-            - Đảm bảo mỗi RB chỉ gán 1 user (Constraint 1)
-            - Đảm bảo công suất phân bổ hợp lý không vượt quá Pmax (Constraint 5)
-            """
+        while condition :
+            # Initialize state ensuring each RB serves at most one user"""
+            # Create empty allocation and power matrices
+            num_rbs = max(len(self.B[i]) for i in self.I)
+            allocation = np.zeros((len(self.I), num_rbs, len(self.K)))
+            power = np.zeros_like(allocation)
             
+            # Track available RBs and remaining power
+            available_rbs = {(i, b) for i in self.I for b in self.B[i]}
+            ru_power_remaining = {i: self.Pmax[i] for i in self.I}
+            
+            # Create list of all possible user-RB allocations with their channel quality
+            candidate_allocations = []
             for i in self.I:
-                total_power = self.Pmax[i]  # Tổng công suất đã cấp phát trong RU i
-
-                for b in self.B[i]:
-                    # Chọn ngẫu nhiên 1 user để gán RB (đảm bảo RB chỉ gán cho 1 user)
-                    k = np.random.choice(self.K)  
-                    x[i][b][k] = 1  # Gán RB b cho user k
-
-                # Phân bổ công suất ngẫu nhiên
                 for b in self.B[i]:
                     for k in self.K:
-                        if x[i][b][k] == 1:
-                            p[i][b][k] = np.random.uniform(0.1, 0.5) * self.Pmax[i]  # Gán công suất ngẫu nhiên
-                            if total_power <= p[i][b][k] :
-                                p[i][b][k] = total_power
-                                total_power = 0
-                            else :
-                                total_power-=p[i][b][k]
-            if self.check_solution_constraints(x, p) == 0 :
-                print("Initial state completed!")
-                condition = False
+                        candidate_allocations.append((
+                            self.H[i][b][k],  # Channel quality as primary sort key
+                            random.random(),   # Secondary random key for diversity
+                            i, b, k           # Allocation identifiers
+                        ))
+            
+            # Sort by channel quality (descending) and random factor
+            candidate_allocations.sort(reverse=True, key=lambda x: (x[0], x[1]))
+            
+            # Assign best user-RB pairs first
+            for h_val, _, i, b, k in candidate_allocations:
+                if (i, b) not in available_rbs:
+                    continue  # RB already assigned
+                    
+                if ru_power_remaining[i] <= 0:
+                    continue  # No power left in this RU
+                    
+                # Calculate reasonable power allocation
+                rb_power = min(
+                    0.9 * ru_power_remaining[i] / len(self.B[i]),  # Equal share with headroom
+                    (self.N0 * self.BW) / h_val * (2**(self.RminK[k]/self.BW) - 1) if self.RminK[k] > 0 else float('inf')
+                )
                 
-        return x, p
+                if rb_power > 1e-6:  # Significant power allocation
+                    allocation[i][b][k] = 1
+                    power[i][b][k] = rb_power
+                    available_rbs.remove((i, b))
+                    ru_power_remaining[i] -= rb_power
+            
+            # Second pass to ensure minimum rate requirements
+            for k in self.K:
+                current_rate = sum(
+                    self.BW * np.log2(1 + (power[i][b][k] * self.H[i][b][k] / (self.N0 * self.BW)))
+                    for i in self.I for b in self.B[i] if allocation[i][b][k] > 0
+                )
+                
+                if self.RminK[k] > 0 and current_rate < self.RminK[k]:
+                    # Find best available RB to add for this user
+                    best_rb = None
+                    best_h = 0
+                    for i in self.I:
+                        for b in self.B[i]:
+                            if (i, b) in available_rbs:  # Only unassigned RBs
+                                if self.H[i][b][k] > best_h:
+                                    best_h = self.H[i][b][k]
+                                    best_rb = (i, b)
+                    
+                    if best_rb and ru_power_remaining[best_rb[0]] > 0:
+                        i, b = best_rb
+                        needed_power = (self.N0 * self.BW) / self.H[i][b][k] * (
+                            2**((self.RminK[k] - current_rate)/self.BW) - 1
+                        )
+                        allocated_power = min(needed_power, ru_power_remaining[i])
+                        
+                        if allocated_power > 1e-6:
+                            allocation[i][b][k] = 1
+                            power[i][b][k] = allocated_power
+                            available_rbs.remove((i, b))
+                            ru_power_remaining[i] -= allocated_power         
 
+            if self.check_solution_constraints(allocation, power) == 0:
+                condition = False
+                throughput = sum(self.compute_throughput(self.compute_SINR((allocation, power)))[k] for k in self.K)
+                with open("./throughput.txt", "a") as opf:
+                    opf.write(f"{throughput}")
+                with open("./power.txt", "a") as opp:
+                    opf.write(str(power))
+                return (allocation, power)    
+            
     def compute_SINR(self, state):
         allocation, power = state
         SINR = {i : np.zeros((len(self.B[i]), len(self.K))) for i in self.I}
         for i in self.I:
             for b in self.B[i]:
                 for k in self.K:
-                    signal = allocation[i][b][k] * power[i][b][k] * self.H[k][i][b]
+                    signal = allocation[i][b][k] * power[i][b][k] * self.H[i][b][k]
                     SINR[i][b][k] = signal / (self.N0 * self.BW)
         return SINR
 
@@ -111,103 +162,118 @@ class RBAllocationSA(Annealer):
         # Constraint 1: Mỗi RB chỉ được gán tối đa 1 user
         for i in self.I:
             for b in self.B[i]:
-                if sum(x[i][b][k] for k in self.K) > 1:
+                sum_b = sum([x[i][b][k] for k in self.K])
+                if sum_b > 1.0:
                     return 1  # Vi phạm điều kiện 1
 
         # Constraint 5: Tổng công suất truyền không vượt quá Pmax của RU
         for i in self.I:
             total_power = sum(x[i][b][k] * p[i][b][k] for b in self.B[i] for k in self.K)
-            if total_power - self.Pmax[i] > 1e-5:
+            t = total_power - self.Pmax[i]
+            if t > 0.1e-3:
                 return 5  # Vi phạm điều kiện 5
 
         return 0  # Không có lỗi nào
 
-
-    def energy(self):
-        SINR = self.compute_SINR(self.state)
+    def compute_obj(self, state):
+        SINR = self.compute_SINR(state)
         throughput = self.compute_throughput(SINR)
         
         # Hàm tối ưu của bài toán
-        cost = -sum((throughput[k]/self.Tmin) + self.pi[k] for k in self.K)
+        cost = -sum(common.tunning * (throughput[k] / self.Thrmin) + (1 - common.tunning) * self.pi[k] for k in self.K)
 
         # Đại lượng phạt nếu không đảm bảo throughput cho người dùng
-        penalty = common.lamda_penalty * sum(np.log1p(max(0, (self.RminK[k] - throughput[k]) / self.Tmin)) for k in self.K)
+        penalty = common.lamda_penalty * sum(np.log1p(max(0, (self.RminK[k] - throughput[k]) / self.Thrmin)) for k in self.K)
 
         # Tối đa hóa hàm mục tiêu và tối thiểu hóa đại lượng phạt 
         return cost + penalty
     
+
+    def energy(self):
+        return self.compute_obj(self.state)
+    
     def move(self):
-        allocation, power = self.state  # Lấy trạng thái hiện tại
         condition = True
-
-        # Xác định số RB tối đa ban đầu cho mỗi user để tránh phân tán công suất
-        max_RB_per_user = max(1, len(self.K) // len(self.I))
-
         while condition:
-            i = np.random.choice(self.I)  # Chọn ngẫu nhiên một RU
-            k = np.random.choice(self.K)  # Chọn ngẫu nhiên một user
+            allocation, power = self.state
+            #throughput = self.compute_throughput(self.compute_SINR(self.state))
+            delta = 0.01  # Power adjustment factor
+            action = random.choices(
+                ["boost", "remove", "balance", "refocus"], weights=[0.4, 0.1, 0.3, 0.2]
+            )[0]
 
-            # Danh sách RB đã cấp phát và chưa cấp phát cho user k
-            b_used = np.where(allocation[i][:, k] == 1)[0] if np.any(allocation[i][:, k]) else []
-            b_unused = [b for b in range(len(self.B[i])) if b not in b_used]  # Các RB chưa dùng
+            i = random.choice(self.I)
+            b = random.choice(self.B[i])
+            used_k = [k for k in self.K if allocation[i][b][k] == 1 and power[i][b][k] > 0]
 
-            action = np.random.choice(["add", "swap", "relocate"], p=[1/3, 1/3, 1/3])
 
-            if action == "add" and len(b_unused) > 0 and len(b_used) < max_RB_per_user:
-                # Chọn RB có channel gain tốt nhất chưa dùng
-                b_new = max(b_unused, key=lambda b: self.H[k][i][b])
-                b_existing = np.random.choice(b_used) if len(b_used) > 0 else None
+            if action == "boost" and used_k:
+                k = used_k[0]
+                if np.sum(power[i]) + delta * self.Pmax[i] <= self.Pmax[i]:
+                    power[i][b][k] += delta * self.Pmax[i]
 
-                if sum(allocation[i][b_new]) == 0:
-                    allocation[i][b_new][k] = 1
-                    if b_existing is not None:
-                        power_share = power[i][b_existing][k] * 0.20
-                        power[i][b_existing][k] *= 0.80
-                        power[i][b_new][k] = power_share
-                    else:
-                        power[i][b_new][k] = 0.1 * self.Pmax[i]
 
-            elif action == "swap" and len(b_used) > 0:
-                k_other = np.random.choice(self.K)
-                if k_other != k:
-                    b_swap = np.random.choice(b_used)
-                    if allocation[i][b_swap][k_other] == 1:
-                        allocation[i][b_swap][k], allocation[i][b_swap][k_other] = (
-                            allocation[i][b_swap][k_other],
-                            allocation[i][b_swap][k],
-                        )
+            elif action == "remove" and used_k:
+                k = used_k[0]
+                if power[i][b][k] > delta * self.Pmax[i]:
+                    power[i][b][k] -= delta * self.Pmax[i]
+                    if power[i][b][k] < 1e-6:
+                        allocation[i][b][k] = 0
+                        power[i][b][k] = 0
 
-            elif action == "relocate" and len(b_used) > 0 and len(b_unused) > 0:
-                b_old = np.random.choice(b_used)
-                b_new_candidates = [b for b in b_unused if self.H[k][i][b] > self.H[k][i][b_old]]
+
+            elif action == "balance":
+                avg_power = self.Pmax[i] / len(self.B[i])
+                total_rb_power = np.sum(power[i][b])
+                if total_rb_power > 1.2 * avg_power and used_k:
+                    k = used_k[0]
+                    reduce = min(0.5 * delta * self.Pmax[i], power[i][b][k])
+                    power[i][b][k] -= reduce
+                    if power[i][b][k] < 1e-6:
+                        allocation[i][b][k] = 0
+                        power[i][b][k] = 0
+
+                elif total_rb_power < 0.8 * avg_power:
+                    best_k = max(self.K, key=lambda k: self.H[i][b][k])
+                    for k2 in self.K:
+                        if k2 != best_k:
+                            allocation[i][b][k2] = 0
+                            power[i][b][k2] = 0
+                    allocation[i][b][best_k] = 1
+                    power[i][b][best_k] += delta * self.Pmax[i]
+
+            elif action == "refocus":
+                # Assign RB to a better user
+                if not used_k:
+                    best_k = max(self.K, key=lambda k: self.H[i][b][k])
+                    for k2 in self.K:
+                        allocation[i][b][k2] = 0
+                        power[i][b][k2] = 0
+                    allocation[i][b][best_k] = 1
+                    power[i][b][best_k] = delta * self.Pmax[i]
+
+                else:
+                    current_k = used_k[0]
+                    better_k = max(self.K, key=lambda k: self.H[i][b][k])
+                    if better_k != current_k and self.H[i][b][better_k] > self.H[i][b][current_k] * 1.3:
+                        transfer = power[i][b][current_k]
+                        allocation[i][b][current_k] = 0
+                        power[i][b][current_k] = 0
+                        allocation[i][b][better_k] = 1
+                        power[i][b][better_k] = transfer
+
+
+            if self.check_solution_constraints(allocation, power) == 0:
+                self.state = (allocation, power)
+                self.energy_history.append(self.energy())
+                self.all_x.append(allocation)
+                self.all_p.append(power)
+                self.actions.append(action)
                 
-                if b_new_candidates:
-                    b_new = max(b_new_candidates, key=lambda b: self.H[k][i][b])
-                    allocation[i][b_old][k] = 0
-                    allocation[i][b_new][k] = 1
-                    power[i][b_new][k] = power[i][b_old][k]
-                    power[i][b_old][k] = 0
-
-            # Kiểm tra lại throughput để đảm bảo không user nào bị thiếu
-            throughput = self.compute_throughput(self.compute_SINR((allocation, power)))
-            for k in self.K:
-                if throughput[k] < self.RminK[k]:
-                    # Cấp thêm công suất nếu chưa đạt yêu cầu
-                    for i in self.I:
-                        for b in self.B[i]:
-                            if allocation[i][b][k] == 1:
-                                power[i][b][k] = min(self.Pmax[i], power[i][b][k] * 1.1)
-
-            # Loại bỏ RB cấp phát nhưng không có công suất
-            for b in self.B[i]:
-                if allocation[i][b][k] == 1 and power[i][b][k] == 0:
-                    allocation[i][b][k] = 0
-
-            # Nếu trạng thái hợp lệ, cập nhật trạng thái mới
-            self.state = allocation, power  
-            self.energy_history.append(self.energy())  # Lưu lại năng lượng
-            condition = False
-
+                throughput = sum(self.compute_throughput(self.compute_SINR(self.state))[k] for k in self.K)
+                with open("./throughput.txt", "a") as opf:
+                    opf.write(f"{throughput}")
+                condition = False
 
     def re_calculate(self):
         # Cập nhật pi[k] dựa trên throughput và RminK[k]
@@ -228,19 +294,17 @@ class RBAllocationSA(Annealer):
 
         # Cập nhật throughput tổng cộng
         self.throughput_SA = sum(
-                sum(self.BW * np.log2(1 + sinr[i][b][k]) for i in self.I for b in self.B[i])
-                for k in self.K
+                throughput[k] for k in self.K
             )
-        
-        with open("./output_SA.txt", 'w') as opf:
-            opf.writelines([str(allocation), str(power)])
 
-                
     def run(self):
         self.copy_strategy = "deepcopy"
         start = time.time()
         self.best_state, self.best_energy = self.anneal()
         end = time.time()
+        allocate, power = self.best_state
+        self.all_x.append(allocate)
+        self.all_p.append(power)
         self.time = end - start
         self.save_file()
         self.re_calculate()
@@ -262,8 +326,9 @@ class RBAllocationSA(Annealer):
         save_file = f"./DRL/Data_DRL/data_{RBAllocationSA.id}_{self.test_id}.npz"
         np.savez_compressed(save_file, x = np.array(self.all_x, dtype = object)
                                      , p = np.array(self.all_p, dtype = object)
-                                     , energy = np.array(self.energy_history, dtype = np.float32),
-                                     allow_pickle = True)
+                                     , energy = np.array(self.energy_history, dtype = np.float32)
+                                     , action = np.array(self.actions, dtype = np.str_) 
+                                     , allow_pickle = True)
 
     
 

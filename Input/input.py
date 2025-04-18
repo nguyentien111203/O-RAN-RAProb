@@ -13,15 +13,24 @@ def createEnvironmentInput(numuser : int, numRU : int, numRBeRU : list):
     I = np.array([i for i in range(numRU)])  # Danh sách RU
     
     # Tạo danh sách B dưới dạng dictionary để giữ số RB khác nhau cho mỗi RU
-    B = {i: np.array([b for b in range(numRBeRU[i])]) for i in range(numRU)}
+   
+    # B: mảng 2 chiều (RU, RB): mỗi hàng là chỉ số RB của RU đó (pad bằng -1 nếu không đủ)
+    maxRB = max(numRBeRU)
+    B = []  
+    for i in range(numRU):
+        B.append(np.arange(numRBeRU[i]))
 
-    H = {k: {i: np.random.uniform(0.1, 10, len(B[i])) for i in I} for k in K}
+    # H: mảng 3 chiều (RU, RB, User), pad bằng 0 ở vị trí RB không hợp lệ
+    H = np.zeros((numRU, maxRB, numuser))
+    for i in range(numRU):
+        for b in range(numRBeRU[i]):
+            H[i, b] = np.random.uniform(0.1, 1.0, size=numuser)
  
     return K, I, B, H
 
 def input_from_npz(file : str):
 
-    data = np.load(file = file)
+    data = np.load(file = file, allow_pickle = True)
 
     # Truy xuất đầu vào theo tên
     K = data["K"]
@@ -30,9 +39,11 @@ def input_from_npz(file : str):
     H = data["H"]
     RminK = data["RminK"]
     Pmax = data["Pmax"]
-    Tmin = data["Tmin"]
+    Thrmin = data["Thrmin"]
+    BW = data["BW"]
+    N0 = data["N0"]
 
-    return K, I, B, H, RminK, Pmax, Tmin
+    return K, I, B, H, RminK, Pmax, Thrmin, BW, N0
 
 
 
