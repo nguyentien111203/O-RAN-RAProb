@@ -16,7 +16,7 @@ def main():
         # Tạo một csv reader
         reader = csv.reader(csvfile)
         next(reader)
-        line = 6 #4
+        line = 7 #4
         for row in reader:
             line += 1
             numuser, numRU, RBeachRU, Pmax, RminK, Thrmin, BW, N0, step_SA, Tmax, Tmin = row
@@ -54,7 +54,7 @@ def main():
             pro_greedy.run()
             
             # Giải với SA
-            for t in range(2):
+            for t in range(1):
                 prob_SA = SimulatedAnnealing.RBAllocationSA(K = K, I = I, H = H, B = B, Pmax = Pmax,
                                                 RminK = RminK, Thrmin = Thrmin, BW = BW, N0 = N0, step_SA = step_SA, Tmax = Tmax,
                                                 Tmin = Tmin, test_id = t)
@@ -73,7 +73,7 @@ def main():
                                 numuser_SA = prob_SA.num_user_serve, 
                                 throughput_SA = prob_SA.throughput_SA,
                                 time_SA = prob_SA.time, 
-                                throughput_Greedy = pro_greedy.throughput, 
+                                throughput_Greedy = pro_greedy.throughput_Greedy, 
                                 num_user_Greedy = pro_greedy.num_user_serve,
                                 runtime_Greedy = pro_greedy.runtime)
                 

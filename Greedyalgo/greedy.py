@@ -20,7 +20,8 @@ class GreedyAllocation:
         self.allocation = np.zeros((len(self.I), max(len(self.B[i]) for i in self.I), len(self.K)))
         self.power = np.zeros((len(self.I), max(len(self.B[i]) for i in self.I), len(self.K)))
         self.num_user_serve = 0
-        self.throughput = 0
+        self.throughput_Greedy = 0
+        self.throughput = {}
         self.runtime = 0
     
     def check_solution_constraints(self, x, p):
@@ -65,23 +66,29 @@ class GreedyAllocation:
         while condition:
             allocation_temp = self.allocation.copy()
             power_temp = self.power.copy()
-            for i in sorted_RU:
-                for b in self.B[i]:
-                     # Chọn user có Channel Gain cao nhất cho RB này
-                    k = random.choice(self.K)
-                    power_temp[i, b, k] = self.Pmax[i] / len(self.B[i])  # Phân bổ công suất đồng đều
-                    allocation_temp[i][b][k] = 1
-                
-                if self.check_solution_constraints(allocation_temp, power_temp) == 0:
-                    condition = False
-                    self.allocation = allocation_temp
-                    self.power = power_temp
-                    self.num_user_serve = sum(self.pi[k] for k in self.K)
-                    self.throughput = self.compute_total_throughput()
-                    end = time.time()
-                    self.runtime = end - start
 
-    def compute_total_throughput(self):
+            for i in self.I:
+                ru_power_left = self.Pmax[i]
+                for b in self.B[i]:
+                    # Chọn người dùng có channel tốt nhất
+                    k = np.random.choice(self.K)
+                    allocation_temp[i][b][k] = 1
+
+                    # Cấp công suất theo tỉ lệ kênh truyền
+                    share = min(ru_power_left, self.Pmax[i] / len(self.B[i]))
+                    power_temp[i][b][k] = share
+                    ru_power_left -= share
+            
+            if self.check_solution_constraints(allocation_temp, power_temp) == 0:
+                condition = False
+                end = time.time()
+                self.allocation = allocation_temp
+                self.power = power_temp
+                self.re_calculate()
+                self.num_user_serve = sum(self.pi[k] for k in self.K)
+                self.runtime = end - start
+
+    def compute_throughput(self):
         SINR = np.zeros((len(self.I), max(len(self.B[i]) for i in self.I), len(self.K)))
         for i in self.I:
             for b in self.B[i]:
@@ -90,11 +97,25 @@ class GreedyAllocation:
                     signal = self.allocation[i][b][k] * self.power[i][b][k] * self.H[i][b][k]
                     SINR[i][b][k] = signal / (self.N0 * self.BW)
 
-        # Tính throughput tổng hợp cho toàn hệ thống
-        total_throughput = 0.0
-        for i in self.I:
-            for b in self.B[i]:
-                for k in self.K:
-                    if SINR[i][b][k] > 0:
-                        total_throughput += self.BW * np.log2(1 + SINR[i][b][k])
-        return total_throughput
+        return {k: sum(self.BW * np.log2(1 + SINR[i][b][k]) for i in self.I for b in self.B[i]) for k in self.K}
+    
+    def re_calculate(self):
+        # Cập nhật pi[k] dựa trên throughput và RminK[k]
+        throughput = self.compute_throughput()
+        self.pi = {k: 1 if throughput[k] >= self.RminK[k] else 0 for k in self.K}
+
+        # Cập nhật lại trạng thái phân bổ RB (x) dựa trên pi[k]
+        for k in self.K:
+            if self.pi[k] == 0:  
+                for i in self.I:
+                    for b in self.B[i]:
+                        self.allocation[i][b][k] = 0 
+                        self.power[i][b][k] = 0
+
+        throughput = self.compute_throughput()
+        self.pi = {k: 1 if throughput[k] >= self.RminK[k] else 0 for k in self.K}
+
+        # Cập nhật throughput tổng cộng
+        self.throughput_Greedy = sum(
+                throughput[k] for k in self.K
+            )
