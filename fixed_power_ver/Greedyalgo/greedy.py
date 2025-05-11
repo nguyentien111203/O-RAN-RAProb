@@ -3,16 +3,16 @@ import random
 import time
 
 class GreedyAllocation:
-    def __init__(self, K, I, H, B, Pmax, RminK, Thrmin, BW, N0):
+    def __init__(self, K, I, H, B, P, RminK, Thrmin, BandW, N0):
         # Khởi tạo các tham số môi trường
         self.K = K  # Tập người dùng
         self.I = I  # Tập RU
         self.H = H  # Ma trận channel gain: H[i][b][k]
         self.B = B  # Danh sách RB của mỗi RU
-        self.Pmax = Pmax  # Công suất tối đa mỗi RU
+        self.P = P  # Công suất mỗi RB của RU
         self.RminK = RminK  # Yêu cầu throughput tối thiểu từng user
         self.Thrmin = Thrmin  # Tổng throughput mục tiêu
-        self.BW = BW  # Băng thông mỗi RB
+        self.BandW = BandW  # Băng thông mỗi RB
         self.N0 = N0  # Noise power density
 
         # Tạo ma trận phân bổ và công suất: allocation[i][b][k], power[i][b][k]
