@@ -20,7 +20,8 @@ def main():
     # Vi du munuser, numRU, B, PeachRB, HeachRU, RminK, BandW, N0 = takeinput() chẳng hạn
 
     # Khởi tạo môi trường và thuật toán
-    env = Environment(numuser, numRU, B, PeachRB, HeachRU, RminK, BandW, N0)
+    # Tôi đã thêm delta để ông có thể tùy chỉnh mức tăng giảm
+    env = Environment(numuser, numRU, B, PeachRB, HeachRU, RminK, BandW, N0, delta = 0.05)
     q_learning = MultiAgentQLearning(env, numuser, numRU)
 
     # Huấn luyện
