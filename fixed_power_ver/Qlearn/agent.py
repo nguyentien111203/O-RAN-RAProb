@@ -3,21 +3,35 @@ import numpy as np
 
 
 class RUAgent:
-    def __init__(self, ru_idx, numuser, RminK, shared_Q_tables):
+    def __init__(self, ru_idx, numuser, RminK, B, shared_Q_tables):
         self.ru_idx = ru_idx
         self.numuser = numuser
         self.RminK = RminK
         self.actions = [(i, j) for i in range(numuser) for j in range(numuser) if i != j]
         self.Q_table = shared_Q_tables
+        self.B = B
 
     def get_allocation_states(self):
-        """Tạo các trạng thái rời rạc cho allocation"""
-        return list(product(np.arange(0, 1.01, 0.05), repeat=self.numuser))
+        """Sinh tất cả các trạng thái phân bổ PRB nguyên cho từng user sao cho tổng không vượt quá B_max"""
+        B_max = max(self.B)  # hoặc dùng giá trị điển hình nếu bạn xét 1 RU tại một thời điểm
+        allocation_states = []
+
+        def gen_states(num_user, budget, prefix=[]):
+            """Đệ quy sinh tất cả các tổ hợp số nguyên không âm có tổng ≤ budget"""
+            if num_user == 1:
+                if sum(prefix) <= budget:
+                    allocation_states.append(tuple(prefix + [budget - sum(prefix)]))
+                return
+            for i in range(budget + 1 - sum(prefix)):
+                gen_states(num_user - 1, budget, prefix + [i])
+
+        gen_states(self.numuser, B_max)
+        return allocation_states
 
     def get_rgap_states(self):
         """Tạo các trạng thái rời rạc cho R_gap"""
-        # Với 4 mức : 0 là đã đủ, 1 là gần đạt, 2 là thiếu vừa, 3 là thiếu nhiều
-        return list(product([0, 1, 2, 3], repeat=self.numuser))
+        # Với 2 mức : 0 là đã đủ, 1 là đạt
+        return list(product([0, 1], repeat=self.numuser))
 
     def state_to_key(self, state):
         """Chuyển trạng thái thành key cho Q-table"""
