@@ -1,2 +1,1 @@
 test_id,numuser,numRU,RBeachRU,time_ILP,throughput_ILP,numuser_ILP,check_ILP,step_SA,numuser_SA,throughput_SA,time_SA,throughput_rate,throughput_Greedy,num_user_Greedy,runtime_Greedy
-

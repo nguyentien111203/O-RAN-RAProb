@@ -7,6 +7,7 @@ import ast
 import common
 import time
 from Qlearn import env, MultiQ
+from codevehinhmoi import draw_figure
 
 def main():
     
@@ -49,27 +50,43 @@ def main():
             start = time.time()
             # Khởi tạo môi trường và thuật toán
             envir = env.Environment(numuser, numRU, B, P, H, RminK, BandW, N0, delta = 1)
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU)
             
+            """
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.8)
+            q_learning.train(max_episodes=2000)
+            reward.append(q_learning.moving_avgs)
+
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.7)
+            q_learning.train(max_episodes=2000)
+            reward.append(q_learning.moving_avgs)
+
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.6)
+            q_learning.train(max_episodes=2000)
+            reward.append(q_learning.moving_avgs)
+
+            draw_figure(rewards=reward, numuser=numuser, varying=[0.8, 0.7, 0.6], character = 'gamma')
+
+            reward1 = []
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.8)
+            q_learning.train(max_episodes=2000)
+            reward1.append(q_learning.moving_avgs)
+
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.1, gamma = 0.8)
+            q_learning.train(max_episodes=2000)
+            reward1.append(q_learning.moving_avgs)
+            """
+            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.15, gamma = 0.8)
+            q_learning.train(max_episodes=20)
+            end = time.time()
             # Huấn luyện
             
-            q_learning.train(max_episodes=20)
-
-            end = time.time()  
-
-            # Kết quả
-            allocation = q_learning.get_allocation()
-            #print("Final Allocation_matrix:")
-            print(allocation)
             envir.compute_throughput()
-            print("Final Throughput (R_k):", envir.R_k, "Mbps")
-            print("RminK:", RminK, "Mbps")
-
+            
             throughput = envir.R_k
             
             num_served = sum(1 for k in K if throughput[k] >= RminK[k])
 
-            obj_Q = (1-common.tunning) * (sum(throughput)/Thrmin) + (common.tunning) * num_served 
+            obj_Q = (1-common.tunning) * (sum(throughput/Thrmin)) + (common.tunning) * num_served 
 
             greedyProb = GreedyAllocation(numuser, numRU, H, B, P, RminK, Thrmin, BandW, N0)
 

@@ -7,26 +7,10 @@ class RUAgent:
         self.ru_idx = ru_idx
         self.numuser = numuser
         self.RminK = RminK
-        self.actions = [(i, j) for i in range(numuser) for j in range(numuser) if i != j]
-        self.Q_table = shared_Q_tables
         self.B = B
-
-    def get_allocation_states(self):
-        """Sinh tất cả các trạng thái phân bổ PRB nguyên cho từng user sao cho tổng không vượt quá B_max"""
-        B_max = max(self.B)  # hoặc dùng giá trị điển hình nếu bạn xét 1 RU tại một thời điểm
-        allocation_states = []
-
-        def gen_states(num_user, budget, prefix=[]):
-            """Đệ quy sinh tất cả các tổ hợp số nguyên không âm có tổng ≤ budget"""
-            if num_user == 1:
-                if sum(prefix) <= budget:
-                    allocation_states.append(tuple(prefix + [budget - sum(prefix)]))
-                return
-            for i in range(budget + 1 - sum(prefix)):
-                gen_states(num_user - 1, budget, prefix + [i])
-
-        gen_states(self.numuser, B_max)
-        return allocation_states
+        self.Q_table = shared_Q_tables
+        self.actions = [(uf, ut) for uf in range(self.numuser) for ut in range(self.numuser) if uf != ut]
+        self.actions.append((-1,-1))
 
     def get_rgap_states(self):
         """Tạo các trạng thái rời rạc cho R_gap"""
@@ -36,8 +20,7 @@ class RUAgent:
     def state_to_key(self, state):
         """Chuyển trạng thái thành key cho Q-table"""
         alloc = tuple(state['allocation'])
-        rgap = tuple(state['rgap'])
-        return (alloc, rgap)
+        return alloc
 
     def choose_action(self, state, epsilon):
         """Chọn hành động theo chính sách ε-greedy"""
@@ -65,6 +48,6 @@ class RUAgent:
         if next_state_key not in self.Q_table:
             self.Q_table[next_state_key] = {a: 0 for a in self.actions}
         current_q = self.Q_table[state_key][action]
-        next_max_q = max(self.Q_table[next_state_key].values())
+        next_max_q = max(self.Q_table[next_state_key][a] for a in self.actions)
         # Cập nhật theo công thức
         self.Q_table[state_key][action] = current_q + alpha * (reward + gamma * next_max_q - current_q)

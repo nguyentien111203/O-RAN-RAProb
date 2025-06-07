@@ -92,7 +92,7 @@ class AllocationProblemILP():
                     constraints.append(u[(i, b, k)] >= p[(i, b, k)] - self.Pmax[i] * x[(i, b, k)])
 
         # Hàm mục tiêu: Tối đa throughput và số lát mạng được chấp nhận
-        objective = cp.Maximize(cp.sum([(1 - common.tunning) * (dataRate[k]/ self.Thrmin) + common.tunning * pi[k] for k in self.K]))
+        objective = cp.Maximize(cp.sum([(1 - common.tunning) * (dataRate[k]/self.Thrmin) + common.tunning * pi[k] for k in self.K]))
 
         # Giải bài toán tối ưu
         problem = cp.Problem(objective, constraints)
@@ -103,12 +103,7 @@ class AllocationProblemILP():
        
         problem = self.createProblem()
 
-        # Thiết lập số luồng cho MOSEK
-        mosek_params = {
-            "MSK_IPAR_NUM_THREADS": 6,  # Sử dụng 8 luồng (có thể điều chỉnh)
-        }
-
-        problem.solve(solver=cp.MOSEK, verbose = True, mosek_params = mosek_params)
+        problem.solve(solver=cp.MOSEK, verbose = True)
 
         self.sol_map = problem.var_dict
         self.num_user_serve = sum(self.sol_map.get(f"pi_{k}").value for k in self.K)

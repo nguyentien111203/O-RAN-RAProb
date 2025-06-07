@@ -6,12 +6,12 @@ def main():
     # Thông số ví dụ
     numuser = 3
     numRU = 2
-    B = [10, 10]    # Số RB ở mỗi RU
-    PeachRB = [0.1, 0.1]  # đơn vị : mW
-    HeachRU = np.random.rand(numRU, numuser)  # Đang để ở ví dụ là kênh ngẫu nhiên
-    RminK = np.array([2, 3, 4])  # Mbps
+    B = [52, 52]    # Số RB ở mỗi RU
+    PeachRB = [10, 10]  # đơn vị : mW
+    
+    RminK = np.array([0.1, 0.1, 0.1])  # Mbps
     BandW = 0.18  # 180 kHz
-    N0 = 1e-6  #mW/Hz
+    N0 = 3.98e-12  #mW/MHz
 
     # Muốn tính toán từ ma trận kênh truyền tới ma trận H cần (ví dụ kênh truyền H[i][k] thành |H[i][k]|):
     # HeachRB = numpy.abs(H)
@@ -38,3 +38,16 @@ def main():
 # Ví dụ sử dụng
 if __name__ == "__main__":
     main()
+
+
+
+# Thông số ví dụ
+numuser = 3 # Số UEs cần được phục vụ (cần lấy)
+numRU = 1 # Số RU hiện có (cần lấy)
+B = [52]  #Số RB ở mỗi RU (cần lấy)
+P = [10]  # Công suất mỗi PRB của từng RU (cần lấy)
+RminK = np.array([0.1, 0.1, 0.1])  # Yêu cầu của người dùng về data rate (đơn vị Mbps) (cần lấy)
+H = [] # Vecto kênh truyền, tôi đang tự để là nó chỉ phụ thuộc vào khoảng cách. (có thể tự cho, tôi có hàm để cho)
+BandW = 0.18  # Băng thông mỗi PRB chiếm (MHz) (cần lấy)
+Thrmin = 1 # Giá trị scale theo tổng throughput, tránh để nó ảnh hưởng quá lớn tới hàm mục tiêu (Đang để là Mbps, tự cho)
+N0 = 3.98e-12  # Mật độ công suất nhiễu (mW/MHz) (có thể tính vì đây là nhiễu trắng)

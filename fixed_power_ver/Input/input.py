@@ -31,13 +31,13 @@ def createEnvironmentInput(numuser : int, numRU : int):
     I = np.array([i for i in range(numRU)])  # Danh sách RU
 
     # H: mảng 2 chiều (RU, User), pad bằng 0 ở vị trí RB không hợp lệ
-    #distance = generate_random_distances(numRU, numuser, d_min = 20, d_max = 100)
-    #H = compute_H_from_distance(distance_matrix=distance)
+    distance = generate_random_distances(numRU, numuser, d_min = 20, d_max = 100)
+    H = compute_H_from_distance(distance_matrix=distance)
     
-    H = np.zeros((numRU, numuser))
-    for i in range(numRU):
-        for k in range(numuser):
-            H[i][k] = 0.25**2 + 0.85**2
+    #H = np.zeros((numRU, numuser))
+    #for i in range(numRU):
+        #for k in range(numuser):
+            #H[i][k] = 0.25**2 + 0.85**2
 
     return K, I, H
 

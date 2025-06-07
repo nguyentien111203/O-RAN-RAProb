@@ -26,8 +26,9 @@ def main():
             RBeachRU = ast.literal_eval(RBeachRU)
             Pmax = ast.literal_eval(Pmax)
             RminK = ast.literal_eval(RminK)
+            PowerRB = ast.literal_eval(PowerRB)
             Thrmin = float(Thrmin)
-            BandW = float(BandW)
+            BandW = ast.literal_eval(BandW)
             N0 = float(N0)
             step_SA = int(step_SA)
             Tmax = int(Tmax)
@@ -40,23 +41,23 @@ def main():
             K, I, B, H, RminK, Pmax, Thrmin, BW, N0 = input.input_from_npz("./Input/Input_data/" + file)
             """
             # Giải bài toán với CVXPY
-            """
+            
             prob = ILPsolver.AllocationProblemILP(K = K, I = I, H = H, B = B, Pmax = Pmax,
-                                            RminK = RminK, Thrmin = Thrmin, BW = BandW, N0 = N0)
+                                            RminK = RminK, Thrmin = Thrmin, BandW = BandW, N0 = N0)
 
             # RminK : Mbps, BW : MHz, N0 : mW/MHz, Pmax : mW
 
             prob.solve()
-            """
+            
             pro_greedy = GreedyAllocation(K = K, I = I, H = H, B = B, Pmax = Pmax, RminK = RminK,
-                                        Thrmin = Thrmin, BW = BandW, N0 = N0)
+                                        Thrmin = Thrmin, BandW = BandW, N0 = N0)
 
             pro_greedy.run()
             
             # Giải với SA
-            for t in range(1):
+            for t in range(3):
                 prob_SA = SimulatedAnnealing.RBAllocationSA(K = K, I = I, H = H, B = B, Pmax = Pmax,
-                                                RminK = RminK, Thrmin = Thrmin, BW = BandW, N0 = N0, step_SA = step_SA, Tmax = Tmax,
+                                                RminK = RminK, Thrmin = Thrmin, BandW = BandW, N0 = N0, step_SA = step_SA, Tmax = Tmax,
                                                 Tmin = Tmin, test_id = t)
                 prob_SA.run()
                 prob_SA.draw_figures()
@@ -65,10 +66,10 @@ def main():
                                 Thrmin = Thrmin, BandW = BandW, N0 = N0, allow_pickle = True)
             
                 createtest.write_data_test("./Output/output.csv", t, numuser, numRU, RBeachRU, 
-                                1,#prob.time, 
-                                1,#prob.throughput,
-                                1,#prob.num_user_serve, 
-                                1,#prob.check, 
+                                prob.time, 
+                                prob.throughput,
+                                prob.num_user_serve, 
+                                prob.check, 
                                 step_SA = prob_SA.steps,
                                 numuser_SA = prob_SA.num_user_serve, 
                                 throughput_SA = prob_SA.throughput_SA,

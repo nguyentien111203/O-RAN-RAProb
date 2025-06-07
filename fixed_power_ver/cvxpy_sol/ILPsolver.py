@@ -1,8 +1,6 @@
 import cvxpy as cp
 import numpy as np
-import gurobipy
 import common
-import mosek
 
 """
     Lớp bài toán O-RAN Resource Allocation
@@ -71,10 +69,10 @@ class AllocationProblemILP():
         # Ràng buộc 4: Liên kết giữa pi và x
         for k in self.K:
             constraints.append(cp.sum([x[(i, k)] for i in self.I]) / sum(self.B) <= pi[k])
-            constraints.append(cp.sum([x[(i, k)] for i in self.I]) / sum(self.B) + 1 - 1e-5 >= pi[k])
+            constraints.append((cp.sum([x[(i, k)] for i in self.I]) / sum(self.B)) + 1 - 1e-5 >= pi[k])
 
         # Hàm mục tiêu: Tối đa throughput và số lát mạng được chấp nhận
-        objective = cp.Maximize(cp.sum([(1 - common.tunning) * (dataRate[k]/ self.Thrmin) + common.tunning * pi[k] for k in self.K]))
+        objective = cp.Maximize(cp.sum([(1 - common.tunning) * (dataRate[k]/self.Thrmin) + common.tunning * pi[k] for k in self.K]))
 
         # Giải bài toán tối ưu
         problem = cp.Problem(objective, constraints)

@@ -20,7 +20,7 @@ class GreedyAllocation:
         self.runtime = 0
     
     def allocate_demand_ratio(self):
-        weighted_score = self.H * self.RminK
+        weighted_score = self.RminK / self.H**0.5
         start = time.time()
         allocation = np.zeros((self.numRU, self.numuser))
 
