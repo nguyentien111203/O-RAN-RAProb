@@ -1,6 +1,5 @@
 import numpy as np
 from itertools import product
-import common
 
 class Environment:
     def __init__(self, numuser, numRU, B, PeachRB, HeachRU, RminK, BandW, N0, delta = 1):

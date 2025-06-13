@@ -1,4 +1,4 @@
-import common
+import utility.common as common
 import cvxpy_sol.ILPsolver as ILPsolver
 import numpy as np
 

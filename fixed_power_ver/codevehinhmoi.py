@@ -11,7 +11,7 @@ def draw_figure(rewards, numuser, varying, character):
     plt.plot(rewards[2], color='blue', label = f"{character} = {varying[2]}")  # plot cumulative reward
     plt.xlabel("Episode")
     plt.ylabel("Average Reward")
-    plt.ylim(bottom = 0, top = numuser + 2)
+    #plt.ylim(bottom = numuser, top = numuser + 1)
     plt.legend()
     plt.grid(True)
     plt.title("Q-learning Progress")

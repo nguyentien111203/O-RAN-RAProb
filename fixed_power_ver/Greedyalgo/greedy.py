@@ -58,3 +58,10 @@ class GreedyAllocation:
             'throughput': throughput,
             'time':self.runtime
         }
+
+
+def greedySolve(numuser, numRU, H, B, P, RminK, Thrmin, BandW, N0):
+    prob = GreedyAllocation(numuser, numRU, H, B, P, RminK, Thrmin, BandW, N0)
+    greedyInfo = prob.evaluate_demand_ratio()
+
+    return greedyInfo.get('num_served_users'), greedyInfo.get('throughput'), greedyInfo.get('time'), greedyInfo.get('objective')

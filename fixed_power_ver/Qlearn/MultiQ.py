@@ -3,20 +3,20 @@ from itertools import product
 from collections import defaultdict
 from Qlearn.agent import RUAgent
 from Qlearn.env import Environment
+from Qlearn.utils import load_q_table
 from matplotlib import pyplot as plt
 import common
+import pickle
 
 
 from collections import defaultdict
 
 class MultiAgentQLearning:
-    def __init__(self, env, numuser, numRU, alpha, gamma):
+    def __init__(self, env, numuser, numRU, Q_table, alpha, gamma):
         self.env = env
         self.numuser = numuser
         self.numRU = numRU
-        self.Q_table = defaultdict(lambda: {(uf, ut): 0 for uf in range(numuser) for ut in range(numuser) if uf != ut})
-        self.Q_table[(-1,-1)] = 0
-        self.agents = [RUAgent(i, numuser, env.RminK, self.env.B[i], self.Q_table) for i in range(numRU)]
+        self.agents = [RUAgent(i, numuser, env.RminK, self.env.B[i], Q_table) for i in range(numRU)]
         self.rewards = []
         self.moving_avgs = []
         self.alpha = alpha
@@ -55,6 +55,9 @@ class MultiAgentQLearning:
         rewards = np.array(self.rewards)
         self.moving_avgs = np.convolve(rewards, np.ones(10)/10, mode='valid')
 
+        with open("./Qlearn/Q_table.pkl", "wb") as f:    # Lưu bảng Q_table
+            pickle.dump([agent.Q_table], f)
+
 
     def get_allocation(self):
         return self.env.Allocation_matrix
@@ -68,6 +71,40 @@ class MultiAgentQLearning:
             + common.lamda_penalty * (1-common.tunning) * sum(self.env.R_k - self.env.RminK)
         
         return reward
+    
+    """
+        Sử dụng MultiQ hiện tại với mô trường để đưa ra hành động
+        Input :
+            env : Môi trường
+            q_table : Q_table đã được train từ trước
+            epsilon : Xác suất lựa chọn hành động ngẫu nhiên
+            episode : Số episodes để các agent thử nghiệm
+            steps_per_ru : Số hành động mà mỗi ru lựa chọn hành động
+        Output :
+            env.Allocation_matrix : Ma trận phân bổ từ từng RU tới các UE
+    """
+    def run_inference(self, env, q_table, epsilon, episode, steps_per_ru):
+        for ep in range(episode):
+            env.reset()
+            self.agents = [RUAgent(i, env.numuser, env.RminK, env.B[i], q_table) for i in range(env.numRU)]
+
+            for ru_idx in range(env.numRU):
+                agent = self.agents[ru_idx]
+                state = env.get_state(ru_idx)  
+
+                for _ in range(steps_per_ru):
+                    valid = False
+                    action = agent.choose_action(state, epsilon)
+                    next_state, done, valid = self.env.step(ru_idx, action)
+                    while not valid:
+                        action = agent.choose_action(state, epsilon)
+                        next_state, done, valid = self.env.step(ru_idx, action)
+
+                    reward = self.compute_total_reward()
+                    agent.update_q_table(state, action, reward, next_state, self.alpha, self.gamma)
+                    state = next_state
+
+        return env.Allocation_matrix
 
 
     def draw_figure(self, window=10):

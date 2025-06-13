@@ -51,3 +51,9 @@ class RUAgent:
         next_max_q = max(self.Q_table[next_state_key][a] for a in self.actions)
         # Cập nhật theo công thức
         self.Q_table[state_key][action] = current_q + alpha * (reward + gamma * next_max_q - current_q)
+
+    
+
+
+    
+

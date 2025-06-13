@@ -1,13 +1,14 @@
 import cvxpy_sol.ILPsolver as ILPsolver
 import Input.input as input
-from Greedyalgo.greedy import GreedyAllocation
+from Greedyalgo.greedy import greedySolve
 import csv
-import createtest
+import createtest as createtest
 import ast
-import common
+import common as common
 import time
-from Qlearn import env, MultiQ
+from Qlearn import env, utils
 from codevehinhmoi import draw_figure
+
 
 def main():
     
@@ -36,51 +37,22 @@ def main():
             # Tạo đầu vào cho bài toán
             K, I, H  = input.createEnvironmentInput(numuser, numRU)
 
-            """
-            K, I, B, H, RminK, Pmax, Thrmin, BW, N0 = input.input_from_npz("./Input/Input_data/" + file)
-            """
-            # Giải bài toán với CVXPY
+            # Giải bài toán với ILP sử dụng cvxpy với mosek
+            time_ILP, throughput_ILP, serve_ILP, check_ILP, objvalue_ILP = ILPsolver.solveILP(K, I, H, B, P, RminK, Thrmin, BandW, N0)
             
-            prob = ILPsolver.AllocationProblemILP(K = K, I = I, H = H, B = B, P = P,
-                                            RminK = RminK, Thrmin = Thrmin, BandW = BandW, N0 = N0)
-
-            # RminK : Mbps, BW : MHz, N0 : mW/MHz, Pmax : mW
-            prob.solve()
-            # Đưa vào tensor
-            start = time.time()
+            # Giải bài toán với Qlearning với 
             # Khởi tạo môi trường và thuật toán
-            envir = env.Environment(numuser, numRU, B, P, H, RminK, BandW, N0, delta = 1)
+            envir = env.Environment(numuser, numRU, B, P, H, RminK, BandW, N0, delta=1)
             
-            """
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.8)
-            q_learning.train(max_episodes=2000)
-            reward.append(q_learning.moving_avgs)
-
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.7)
-            q_learning.train(max_episodes=2000)
-            reward.append(q_learning.moving_avgs)
-
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.6)
-            q_learning.train(max_episodes=2000)
-            reward.append(q_learning.moving_avgs)
-
-            draw_figure(rewards=reward, numuser=numuser, varying=[0.8, 0.7, 0.6], character = 'gamma')
-
-            reward1 = []
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.05, gamma = 0.8)
-            q_learning.train(max_episodes=2000)
-            reward1.append(q_learning.moving_avgs)
-
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.1, gamma = 0.8)
-            q_learning.train(max_episodes=2000)
-            reward1.append(q_learning.moving_avgs)
-            """
-            q_learning = MultiQ.MultiAgentQLearning(envir, numuser, numRU, alpha = 0.15, gamma = 0.8)
-            q_learning.train(max_episodes=20)
-            end = time.time()
-            # Huấn luyện
+            #Train đã thực hiện từ trước với việc lựa chọn tham số phù hợp
             
-            envir.compute_throughput()
+            #moving_avgs = train.train(envir, alpha = 0.1, gamma = 0.65)
+            #reward_alpha.append(moving_avgs)
+            
+            # Để [0] do nó được xuất ra thành list(dict)
+            Q_table = utils.load_q_table("./Qlearn/Q_table.pkl")[0]
+            allocation, time_Q = utils.allocate(envir, 0.05, Q_table, episode = 10, alpha = 0.15, gamma = 0.8)
+            utils.save_allocation_to_csv(allocation, filename="allocation_UE_RU.csv", folder = "results")
             
             throughput = envir.R_k
             
@@ -88,26 +60,27 @@ def main():
 
             obj_Q = (1-common.tunning) * (sum(throughput/Thrmin)) + (common.tunning) * num_served 
 
-            greedyProb = GreedyAllocation(numuser, numRU, H, B, P, RminK, Thrmin, BandW, N0)
-
-            greedyInfo = greedyProb.evaluate_demand_ratio()
-
+            # Giải bằng thuật toán baseline
+            served_greedy, thr_greedy, time_greedy, obj_greedy = greedySolve(numuser, numRU, H, B, P, RminK, Thrmin, BandW, N0)
+            
             createtest.write_data_test("./Output/output.csv", 0, numuser, numRU, B, 
-                                time_ILP=prob.time, 
-                                throughput_ILP=prob.throughput,
-                                numuser_ILP=prob.num_user_serve, 
-                                check_ILP=prob.check, 
-                                objective_value=prob.objvalue,
+                                time_ILP=time_ILP, 
+                                throughput_ILP=throughput_ILP,
+                                numuser_ILP=serve_ILP, 
+                                check_ILP=check_ILP, 
+                                objective_value=objvalue_ILP,
                                 numuser_Q = num_served, 
                                 throughput_Q = sum(throughput[k] for k in K),
-                                time_Q = end - start,
+                                time_Q = time_Q,
                                 obj_Q=obj_Q,
-                                numuser_greedy=greedyInfo.get('num_served_users'),
-                                throughput_greedy=greedyInfo.get('throughput'),
-                                time_greedy=greedyInfo.get('time'),
-                                obj_greedy=greedyInfo.get('objective')
+                                numuser_greedy=served_greedy,
+                                throughput_greedy=thr_greedy,
+                                time_greedy=time_greedy,
+                                obj_greedy=obj_greedy
                                 )
-
+                
+            
+            
     
         
 main()

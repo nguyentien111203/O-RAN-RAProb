@@ -1,6 +1,6 @@
 import cvxpy as cp
 import numpy as np
-import common
+import common as common
 
 """
     Lớp bài toán O-RAN Resource Allocation
@@ -134,5 +134,13 @@ class AllocationProblemILP():
                 return False  # Vi phạm điều kiện 4
 
         return True  # Không có lỗi nào
+    
+def solveILP(K, I, H, B, P, RminK, Thrmin, BandW, N0):
+    prob = AllocationProblemILP(K = K, I = I, H = H, B = B, P = P,
+                                            RminK = RminK, Thrmin = Thrmin, BandW = BandW, N0 = N0)
+
+    prob.solve()
+
+    return prob.time, prob.throughput, prob.num_user_serve, prob.check, prob.objvalue,
 
         
