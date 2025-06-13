@@ -7,8 +7,27 @@ import ast
 import common as common
 import time
 from Qlearn import env, utils
-from codevehinhmoi import draw_figure
 
+"""
+    Hàm này để áp dụng vào xApp (hiện đang để cố định với mẫu hiện tại, sẽ có chỉnh sửa sau)
+    Input : 
+        numuser, numRU, B, P, H, RminK, Thrmin, BandW, N0 : Đầu vào của bài toán
+        delta : số PRB mà từng hành động phân bổ từ người này sang người khác
+        episode : số vòng cập nhật để agent thử và thực hiện hành động
+        epsilon : xác suất để lựa chọn hành động bất kỳ
+        alpha : learning rate)
+        gamma : discount factor
+    Output :
+        allocation : Ma trận phân bổ
+"""
+def applyXApp(numuser, numRU, B, P, H, RminK, Thrmin, BandW, N0, 
+              delta = 1, episode = 10, epsilon = 0.05, alpha = 0.15, gamma = 0.8):
+    envir = env.Environment(numuser, numRU, B, P, H, RminK, Thrmin, BandW, N0, delta=1)
+            
+    allocation, time_Q = utils.allocate(envir, 0.05, Q_table_path="./Qlearn/Q_table.pkl", 
+                                        episode = 10, alpha = 0.15, gamma = 0.8)
+
+    return allocation, time_Q
 
 def main():
     
@@ -42,16 +61,15 @@ def main():
             
             # Giải bài toán với Qlearning với 
             # Khởi tạo môi trường và thuật toán
-            envir = env.Environment(numuser, numRU, B, P, H, RminK, BandW, N0, delta=1)
+            envir = env.Environment(numuser, numRU, B, P, H, RminK, Thrmin, BandW, N0, delta=1)
             
             #Train đã thực hiện từ trước với việc lựa chọn tham số phù hợp
             
             #moving_avgs = train.train(envir, alpha = 0.1, gamma = 0.65)
             #reward_alpha.append(moving_avgs)
             
-            # Để [0] do nó được xuất ra thành list(dict)
-            Q_table = utils.load_q_table("./Qlearn/Q_table.pkl")[0]
-            allocation, time_Q = utils.allocate(envir, 0.05, Q_table, episode = 10, alpha = 0.15, gamma = 0.8)
+            allocation, time_Q = applyXApp(numuser, numRU, B, P, H, RminK, Thrmin, BandW, N0, 
+                                           delta = 1, episode = 10, epsilon = 0.05, alpha = 0.15, gamma = 0.8)
             utils.save_allocation_to_csv(allocation, filename="allocation_UE_RU.csv", folder = "results")
             
             throughput = envir.R_k

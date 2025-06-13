@@ -1,9 +1,6 @@
 import numpy as np
-from itertools import product
-from collections import defaultdict
 from Qlearn.agent import RUAgent
 from Qlearn.env import Environment
-from Qlearn.utils import load_q_table
 from matplotlib import pyplot as plt
 import common
 import pickle
@@ -67,8 +64,8 @@ class MultiAgentQLearning:
     
         self.env.compute_throughput()
         
-        reward = (1 - common.tunning) * sum(self.env.R_k) + common.tunning * sum(self.env.served) \
-            + common.lamda_penalty * (1-common.tunning) * sum(self.env.R_k - self.env.RminK)
+        reward = (1 - common.tunning) * (sum(self.env.R_k)/self.env.Thrmin) + common.tunning * sum(self.env.served) \
+            + common.lamda_penalty * (1-common.tunning) * (sum(self.env.R_k - self.env.RminK)*self.env.Thrmin)
         
         return reward
     

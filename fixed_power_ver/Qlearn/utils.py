@@ -45,7 +45,8 @@ def train(envir : Environment, alpha : float, gamma : float):
         alpha, gamma : các tham số đang được sử dụng
     Hàm này sẽ chọn các hành động với giá trị Q tốt nhất và trả về ma trận phân bổ
 """
-def allocate(env : Environment, epsilon : float, Qtable : dict, episode : int, alpha : float, gamma : float):
+def allocate(env : Environment, epsilon : float, Q_table_path : str, episode : int, alpha : float, gamma : float):
+    Qtable = load_q_table(Q_table_path)[0]
     q_learning = MultiAgentQLearning(env, env.numuser, env.numRU, Qtable, alpha, gamma)
 
     start = time.time()
@@ -61,7 +62,7 @@ def allocate(env : Environment, epsilon : float, Qtable : dict, episode : int, a
 """
     Ghi allocation_matrix vào file CSV, bao gồm số RU và số UE.
 
-    Parameters:
+    Input:
         allocation_matrix (list of list): Ma trận phân phối PRB [numRU][numUE]
         filename (str): Tên file CSV
         folder (str): Thư mục lưu file
@@ -91,6 +92,7 @@ def save_allocation_to_csv(allocation_matrix, filename="allocation_result.csv", 
             writer.writerow([f"RU{ru_idx}"] + list(row))
 
     print(f"Allocation matrix with RU/UE info saved to: {filepath}")
+
 
 
 

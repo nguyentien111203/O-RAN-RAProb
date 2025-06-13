@@ -2,13 +2,14 @@ import numpy as np
 from itertools import product
 
 class Environment:
-    def __init__(self, numuser, numRU, B, PeachRB, HeachRU, RminK, BandW, N0, delta = 1):
+    def __init__(self, numuser, numRU, B, PeachRB, HeachRU, RminK, Thrmin, BandW, N0, delta = 1):
         self.numuser = numuser  # Số người dùng
         self.numRU = numRU      # Số RU
         self.B = B              # Số RB mỗi RU
         self.PeachRB = PeachRB  # Công suất mỗi RB
         self.HeachRU = HeachRU  # Ma trận kênh mỗi RU: shape (numRU, numuser)
         self.RminK = RminK      # Yêu cầu throughput tối thiểu
+        self.Thrmin = Thrmin    # Giá trị scale theo throughput (hiện đang để là Mbps)
         self.BandW = BandW      # Băng thông mỗi PRB
         self.N0 = N0            # Mật độ công suất tạp âm
 
